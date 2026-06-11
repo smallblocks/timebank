@@ -23,7 +23,7 @@ const resetParentPinAction = Action.withoutInput(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       })
-      const result = await response.json()
+      const result = (await response.json()) as { detail?: string }
 
       if (response.ok) {
         return {
