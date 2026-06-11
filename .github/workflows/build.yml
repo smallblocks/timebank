@@ -1,0 +1,68 @@
+name: Build s9pk
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y squashfs-tools-ng
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install start-cli
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download tools-v1 --repo smallblocks/staticrypt-startos --pattern 'start-cli-linux-x86_64.tar.gz'
+          tar xzf start-cli-linux-x86_64.tar.gz
+          sudo mv start-cli /usr/local/bin/
+          start-cli --version
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build JavaScript
+        run: npm run build
+
+      - name: Build Docker image
+        run: docker build -t localhost/timebank:latest .
+
+      - name: Initialize developer key
+        run: start-cli init-key
+
+      - name: Verify Docker image
+        run: docker images | grep timebank
+
+      - name: Pack s9pk
+        run: start-cli s9pk pack . -o timebank.s9pk --arch x86_64
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: timebank-s9pk
+          path: timebank.s9pk
+          retention-days: 30
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dev-latest
+          name: Dev Build (Latest)
+          prerelease: true
+          files: timebank.s9pk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
